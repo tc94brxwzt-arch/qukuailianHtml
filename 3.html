@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Info Fetcher</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .main-layout {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+            height: 100vh;
+            box-sizing: border-box;
+            padding: 10px 0 10px 10px;
+            overflow: hidden;
+        }
+        .left-panel {
+            flex: 0 0 55%;
+            display: flex;
+            flex-direction: column;
+            max-width: 55%;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+        .right-panel {
+            flex: 0 0 45%;
+            border-left: 1px solid #eaeaea;
+            padding-left: 15px;
+            padding-right: 15px;
+            display: flex;
+            flex-direction: column;
+            max-width: calc(45% - 30px);
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+        .controls-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-color: #f8f9fa;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border: 1px solid #e1e4e8;
+            font-size: 12px;
+        }
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .utility-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 5px;
+        }
+        .utility-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .utility-row input {
+            padding: 3px 6px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            width: 280px;
+        }
+        .utility-result {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .controls-section label {
+            font-weight: 600;
+            color: #495057;
+            white-space: nowrap;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .filter-group input {
+            padding: 3px 6px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 12px;
+            width: 50px;
+        }
+        /* Hide up/down arrows for number inputs */
+        .filter-group input[type="number"]::-webkit-outer-spin-button,
+        .filter-group input[type="number"]::-webkit-inner-spin-button,
+        #page-input::-webkit-outer-spin-button,
+        #page-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .filter-group input[type="number"], #page-input {
+            appearance: textfield;
+            -moz-appearance: textfield;
+        }
+        input#auth-input {
+            flex: 1;
+            padding: 3px 6px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .filter-group input:focus, input#auth-input:focus {
+            outline: none;
+            border-color: #80bdff;
+        }
+        button {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+        button:hover { background-color: #0052a3; }
+        button:disabled {
+            background-color: #a0c4e8;
+            cursor: not-allowed;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            font-size: 12px;
+            table-layout: fixed;
+        }
+        th, td {
+            padding: 4px 6px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+            position: sticky;
+            top: 0;
+            white-space: nowrap;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .selected-row {
+            background-color: #e6f7ff !important;
+        }
+        .positive { color: #28a745; font-weight: 500; }
+        .negative { color: #dc3545; font-weight: 500; }
+        .token-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .token-logo {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background-color: #f0f0f0;
+            border: 1px solid #e1e4e8;
+        }
+        .address {
+            color: #0066cc;
+            font-size: 0.9em;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: monospace;
+            background-color: #f1f8ff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .address:hover { text-decoration: underline; background-color: #e1efff; }
+        .time-cell {
+            color: #666;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-style: italic;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .pagination button {
+            background-color: #f8f9fa;
+            color: #333;
+            border: 1px solid #ced4da;
+            padding: 4px 10px;
+        }
+        .pagination button:hover:not(:disabled) {
+            background-color: #e9ecef;
+        }
+        .pagination button:disabled {
+            color: #adb5bd;
+            cursor: not-allowed;
+            background-color: #f8f9fa;
+            border-color: #e9ecef;
+        }
+
+        /* Right panel styles (from 1.html) */
+        .card {
+            background: white;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px 0 rgba(0,0,0,0.05);
+            border: 1px solid #e1e4e8;
+        }
+        .card h2 {
+            margin-top: 0;
+            border-bottom: 1px solid #ebeef5;
+            padding-bottom: 8px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .info-label {
+            font-weight: bold;
+            width: 80px;
+            color: #606266;
+            flex-shrink: 0;
+        }
+        .info-value {
+            flex: 1;
+            word-break: break-all;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .top-row {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .top-row .card {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        .tag {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .tag-contract {
+            background-color: #fdf6ec;
+            color: #e6a23c;
+            border: 1px solid #faecd8;
+        }
+        .tag-eoa {
+            background-color: #f0f9eb;
+            color: #67c23a;
+            border: 1px solid #e1f3d8;
+        }
+        .tag-proxy {
+            background-color: #f0f5ff;
+            color: #409eff;
+            border: 1px solid #d9ecff;
+        }
+        .tag-pair {
+            background-color: #f3e8ff;
+            color: #722ed1;
+            border: 1px solid #e9d8fd;
+            margin-left: 4px;
+        }
+        .tag-token {
+            background-color: #e6f7ff;
+            color: #1890ff;
+            border: 1px solid #91d5ff;
+            margin-left: 4px;
+        }
+        .tag-eip7702 {
+            background-color: #e6fffb;
+            color: #13c2c2;
+            border: 1px solid #87e8de;
+        }
+        .tag-verified {
+            background-color: #f0f9eb;
+            color: #67c23a;
+            border: 1px solid #e1f3d8;
+            margin-left: 4px;
+        }
+        .tag-unverified {
+            background-color: #fef0f0;
+            color: #f56c6c;
+            border: 1px solid #fde2e2;
+            margin-left: 4px;
+        }
+        .tag-created {
+            background-color: #e8f4ff;
+            color: #1890ff;
+            border: 1px solid #d1e9ff;
+            margin-left: 8px;
+        }
+        .copy-icon {
+            cursor: pointer;
+            margin-left: 4px;
+            opacity: 0.5;
+            transition: all 0.2s;
+            vertical-align: middle;
+            display: inline-flex;
+            color: #666;
+        }
+        .copy-icon:hover {
+            opacity: 1;
+            color: #0066cc;
+        }
+        #loadingRight {
+            text-align: center;
+            color: #0066cc;
+            margin: 20px 0;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            border: 1px solid #f5c6cb;
+            display: none;
+        }
+        .right-controls-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-color: #f8f9fa;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border: 1px solid #e1e4e8;
+        }
+        .search-box {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 3px 6px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: #80bdff;
+        }
+        .search-box button {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+        
+        /* Tutorial button and modal styles */
+        .btn-orange {
+            background-color: #ff9800;
+        }
+        .btn-orange:hover {
+            background-color: #e68a00;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 15vh auto;
+            padding: 20px 25px;
+            border-radius: 8px;
+            width: 320px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            position: relative;
+            font-size: 14px;
+            color: #333;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+        .modal-content ol {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+        .modal-content li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            color: #aaa;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-btn:hover {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-layout">
+        <div class="left-panel">
+            <div class="controls-section">
+                <div class="controls-row">
+                    <div class="filter-group" style="flex: 1;">
+                        <label for="auth-input">x-auth:</label>
+                        <input type="text" id="auth-input" placeholder="Enter token" value="">
+                    </div>
+                    <button id="btn-fetch" onclick="fetchNewTokens()">Fetch Data</button>
+                    <button class="btn-orange" onclick="showTutorial()">Tutorial</button>
+                </div>
+                <div class="controls-row">
+                    <div class="filter-group">
+                        <label>Chain:</label>
+                        <select id="chain-select" style="padding: 3px 6px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; width: 80px;">
+                            <option value="bsc">BSC</option>
+                            <option value="arbitrum">Arbitrum</option>
+                            <option value="ethereum">Ethereum</option>
+                            <option value="base">Base</option>
+                            <option value="solana">Solana</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Holders≥:</label>
+                        <input type="number" id="filter-holder-min" placeholder="100" value="100">
+                    </div>
+                    <div class="filter-group">
+                        <label>Liq≥:</label>
+                        <input type="number" id="filter-liquid-min" placeholder="100000" value="100000">
+                    </div>
+                    <div class="filter-group">
+                        <label>Vol≥:</label>
+                        <input type="number" id="filter-volum-min" placeholder="50" value="50">
+                    </div>
+                    <div class="filter-group">
+                        <label>Txns≥:</label>
+                        <input type="number" id="filter-amount-min" placeholder="10" value="10">
+                    </div>
+                    <div class="filter-group">
+                        <label>Time(s):</label>
+                        <input type="number" id="filter-created-interval" placeholder="21600" value="21600">
+                    </div>
+                </div>
+            </div>
+        
+        <div class="utility-actions">
+            <div class="utility-row">
+                <button id="btn-export" onclick="exportWebsites()">Export website</button>
+                <button id="btn-export-pool" onclick="exportPools()" style="background-color: #17a2b8;">Export Pool</button>
+            </div>
+            <div class="utility-row">
+                <input type="text" id="proxy-input" placeholder="Proxy Contract Address">
+                <button id="btn-get-logic" onclick="getLogicContract()" style="background-color: #28a745;">Get Logic</button>
+                <span id="logic-result" class="utility-result"></span>
+            </div>
+            <div class="utility-row">
+                <input type="text" id="evm-private-key-input" placeholder="EVM Private Key" onkeypress="if(event.key === 'Enter') privateKeyToEvmAddress()">
+                <button id="btn-pk-to-address" onclick="privateKeyToEvmAddress()" style="background-color: #6f42c1;">PK to Address</button>
+                <span id="evm-address-result" class="utility-result"></span>
+            </div>
+        </div>
+
+        <table id="tokens-table">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Token</th>
+                    <th style="width: 15%;">24h Vol</th>
+                    <th style="width: 15%;">Market Cap</th>
+                    <th style="width: 12%;">Holders</th>
+                    <th style="width: 15%;">Created At</th>
+                    <th style="width: 18%;">Contract</th>
+                </tr>
+            </thead>
+            <tbody id="tokens-body">
+                <tr>
+                    <td colspan="6" class="empty-state">Click Fetch Data to load tokens</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="pagination" id="pagination-controls" style="display: none;">
+            <button id="btn-prev" onclick="changePage(-1)">Prev</button>
+            <span id="page-info">Page 1 / 1</span>
+            <button id="btn-next" onclick="changePage(1)">Next</button>
+            <div style="display: flex; align-items: center; gap: 5px; margin-left: 10px;">
+                <span>Go to:</span>
+                <input type="number" id="page-input" min="1" style="width: 50px; padding: 3px; border: 1px solid #ced4da; border-radius: 4px; text-align: center;" onkeypress="if(event.key === 'Enter') goToPage()">
+                <button onclick="goToPage()" style="padding: 3px 8px;">Go</button>
+            </div>
+        </div>
+        </div> <!-- end left-panel -->
+        
+        <div class="right-panel">
+            <!-- Right top controls -->
+            <div class="right-controls-wrapper">
+                <div class="search-box" style="align-items: center; margin-bottom: 8px;">
+                    <label for="ankr-api-key" style="font-weight: 600; color: #495057; font-size: 12px; white-space: nowrap; width: 95px;">Ankr Key:</label>
+                    <input type="text" id="ankr-api-key" placeholder="Enter Ankr API Key (for holders)" value="">
+                </div>
+                <div class="search-box" style="align-items: center; margin-bottom: 8px;">
+                    <label for="bscscan-api-key" style="font-weight: 600; color: #495057; font-size: 12px; white-space: nowrap; width: 95px;">Explorer Key:</label>
+                    <input type="text" id="bscscan-api-key" placeholder="Enter Explorer API Key (optional)" value="">
+                </div>
+                <div class="search-box">
+                    <select id="search-chain-select" style="padding: 3px 6px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; width: 80px;">
+                        <option value="bsc">BSC</option>
+                        <option value="ethereum">Ethereum</option>
+                        <option value="arbitrum">Arbitrum</option>
+                        <option value="base">Base</option>
+                        <option value="solana">Solana</option>
+                    </select>
+                    <input type="text" id="tokenInputRight" placeholder="Enter Contract Address (e.g., 0x5506...)">
+                    <button id="searchBtnRight" onclick="handleSearchRight()">Search</button>
+                </div>
+            </div>
+
+            <!-- Right new content area -->
+            <div id="loadingRight" style="display: none;">Fetching data from chain and APIs, please wait...</div>
+            <div id="errorMsgRight" class="error"></div>
+
+            <div id="resultContainerRight" style="display: none;">
+                <!-- Top two columns layout -->
+                <div class="top-row">
+                    <!-- Left: Basic info card -->
+                    <div class="card">
+                        <h2>Token & Pool Info</h2>
+                        <div class="info-row">
+                            <div class="info-label">Token:</div>
+                            <div class="info-value" id="resTokenAddress"></div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Name:</div>
+                            <div class="info-value" id="resTokenName"></div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Main Pool:</div>
+                            <div class="info-value" id="resPoolAddress"></div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Liquidity:</div>
+                            <div class="info-value" id="resPoolLiquidity"></div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Price:</div>
+                            <div class="info-value" id="resPrice"></div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Social info card -->
+                    <div class="card">
+                        <h2 style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <span>Social Links</span>
+                            <span id="socialDataSource" style="font-size: 11px; color: #999; font-weight: normal; font-style: italic;"></span>
+                        </h2>
+                        <div id="resSocials"></div>
+                    </div>
+                </div>
+
+                <!-- Bottom: Holders card -->
+                <div class="card">
+                    <h2>Top 10 Holders</h2>
+                    <table style="table-layout: fixed;">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%;">Rank</th>
+                                <th style="width: 25%;">Address</th>
+                                <th style="width: 45%;">Type</th>
+                                <th style="width: 20%;">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdersTableBody">
+                            <!-- Data will be inserted via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="placeholderRight" style="color: #666; font-style: italic; padding: 20px; text-align: center;">
+                Click a contract address from the left list to view details here...
+            </div>
+        </div> <!-- end right-panel -->
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="tutorialModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeTutorial()">&times;</span>
+            <h3>Tutorial</h3>
+            <ol>
+                <li>Visit <a href="https://ave.ai" target="_blank">ave.ai</a> to get <strong>x-auth</strong></li>
+                <li>Login with wallet on <a href="https://ankr.com" target="_blank">ankr</a> to get <strong>apikey</strong></li>
+                <li>Register on <a href="https://etherscan.io/myapikey" target="_blank">Etherscan</a> to get a free <strong>API Key</strong> (Etherscan V2 API supports BSC, Arbitrum, etc. for checking if contract is verified)</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Export Progress Modal -->
+    <div id="exportModal" class="modal">
+        <div class="modal-content" style="width: 500px; text-align: center;">
+            <h3 id="export-modal-title" style="margin-bottom: 10px;">Exporting...</h3>
+            <div style="background-color: #f0f0f0; border-radius: 4px; height: 20px; width: 100%; margin-bottom: 15px; overflow: hidden;">
+                <div id="export-progress-bar" style="background-color: #0066cc; height: 100%; width: 0%; transition: width 0.2s;"></div>
+            </div>
+            <div id="export-progress-text" style="font-size: 13px; color: #666; margin-bottom: 5px;">Preparing...</div>
+            <div id="export-current-item" style="font-size: 12px; color: #999; font-family: monospace; word-break: break-all; height: 36px; margin-bottom: 10px;"></div>
+            <div id="export-results-log" style="font-size: 11px; color: #333; font-family: monospace; text-align: left; background-color: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 4px; padding: 8px; height: 300px; overflow-y: auto; white-space: pre-wrap;"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+    <script>
+        let allTokens = [];
+        let currentPage = 1;
+        const pageSize = 20;
+        // Try to restore x-auth and Ankr Key from localStorage on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedAuth = localStorage.getItem('x-auth-key');
+            if (savedAuth) {
+                document.getElementById('auth-input').value = savedAuth;
+            }
+            const savedAnkr = localStorage.getItem('ankr-api-key');
+            if (savedAnkr) {
+                document.getElementById('ankr-api-key').value = savedAnkr;
+            }
+            const savedBscScan = localStorage.getItem('bscscan-api-key');
+            if (savedBscScan) {
+                document.getElementById('bscscan-api-key').value = savedBscScan;
+            }
+        });
+
+        async function fetchNewTokens() {
+            const authKey = document.getElementById('auth-input').value.trim();
+            if (!authKey) {
+                alert("Please enter x-auth token!");
+                return;
+            }
+
+            // Save to localStorage for next time
+            localStorage.setItem('x-auth-key', authKey);
+
+            const tbody = document.getElementById('tokens-body');
+            const btn = document.getElementById('btn-fetch');
+            
+            tbody.innerHTML = '';
+            btn.textContent = 'Fetching...';
+            btn.disabled = true;
+            
+            try {
+                // Build query parameters
+                const selectedChain = document.getElementById('chain-select').value;
+                
+                // Map chain names for agacve API
+                let apiChain = selectedChain;
+                if (selectedChain === 'ethereum') apiChain = 'eth';
+                else if (selectedChain === 'arbitrum') apiChain = 'arbitrum'; // The API expects 'arbitrum', not 'arb'
+                else if (selectedChain === 'solana') apiChain = 'solana'; // The API expects 'solana', not 'sol'
+
+                const holderMin = document.getElementById('filter-holder-min').value;
+                const liquidMin = document.getElementById('filter-liquid-min').value;
+                const volumMin = document.getElementById('filter-volum-min').value;
+                const amountMin = document.getElementById('filter-amount-min').value;
+                const createdInterval = document.getElementById('filter-created-interval').value;
+
+                const params = new URLSearchParams({
+                    chain: apiChain,
+                    amm: '',
+                    category: 'tao',
+                    direction: '',
+                    liquid_max: '',
+                    amount_max: '',
+                    volum_max: '',
+                    holder_max: '',
+                    risk_score: '',
+                    risk_level: '0',
+                    fdv_min: '',
+                    fdv_max: '',
+                    sort: 'target_opening_at',
+                    updated_interval: '1440',
+                    pageNO: '1',
+                    pageSize: '1000'
+                });
+
+                if (holderMin) params.append('holder_min', holderMin);
+                else params.append('holder_min', '');
+
+                if (liquidMin) params.append('liquid_min', liquidMin);
+                else params.append('liquid_min', '');
+
+                if (volumMin) params.append('volum_min', volumMin);
+                else params.append('volum_min', '');
+
+                if (amountMin) params.append('amount_min', amountMin);
+                else params.append('amount_min', '');
+
+                if (createdInterval) params.append('created_interval', createdInterval);
+                else params.append('created_interval', '');
+
+                // Request target API directly
+                const response = await fetch(`https://api.agacve.com/v1api/v3/tokens/treasure?${params.toString()}`, {
+                    headers: {
+                        "x-auth": authKey
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 1) {
+                    let tokens = [];
+                    // Parse encrypted data
+                    if (result.data_type === 2 && result.encode_data) {
+                        try {
+                            const decodedStr = decodeURIComponent(atob(result.encode_data));
+                            const parsedData = JSON.parse(decodedStr);
+                            tokens = parsedData.data || [];
+                        } catch (e) {
+                            console.error("Parse encode_data failed", e);
+                            alert("Data decryption failed, please check console logs.");
+                        }
+                    } else {
+                        tokens = (result.data && result.data.data) ? result.data.data : [];
+                    }
+                    
+                    if (tokens.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No matching data found, or x-auth expired.</td></tr>';
+                        document.getElementById('pagination-controls').style.display = 'none';
+                    } else {
+                        allTokens = tokens;
+                        currentPage = 1;
+                        renderPage();
+                    }
+                } else {
+                    alert("Fetch failed: " + (result.msg || "Unknown error"));
+                    tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color: red;">Failed: ${result.msg || "Unknown error"}</td></tr>`;
+                    document.getElementById('pagination-controls').style.display = 'none';
+                }
+            } catch (error) {
+                console.error("Request error:", error);
+                alert("Request error, please check network or console. If CORS issue, install Allow CORS extension.");
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state" style="color: red;">Request error, possible CORS issue or network problem.</td></tr>';
+                document.getElementById('pagination-controls').style.display = 'none';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Fetch Data';
+            }
+        }
+        
+        async function exportWebsites() {
+            if (!allTokens || allTokens.length === 0) {
+                alert("No data to export. Please fetch data first.");
+                return;
+            }
+            const quantityStr = prompt("Please enter the quantity you want to export.", "100");
+            if (!quantityStr) return;
+            const quantity = parseInt(quantityStr, 10);
+            if (isNaN(quantity) || quantity <= 0) {
+                alert("Invalid quantity.");
+                return;
+            }
+
+            // 去重合约地址，并截取指定数量
+            const uniqueAddresses = new Set();
+            const addresses = [];
+            for (let t of allTokens) {
+                const addr = (t.target_token || t.token).toLowerCase();
+                if (!uniqueAddresses.has(addr)) {
+                    uniqueAddresses.add(addr);
+                    addresses.push(t.target_token || t.token);
+                }
+                if (addresses.length >= quantity) {
+                    break;
+                }
+            }
+
+            if (addresses.length === 0) {
+                alert("No unique addresses found to export.");
+                return;
+            }
+            
+            const btn = document.getElementById('btn-export');
+            const originalText = btn.innerText;
+            btn.innerText = "Exporting...";
+            btn.disabled = true;
+
+            const exportModal = document.getElementById('exportModal');
+            const modalTitle = document.getElementById('export-modal-title');
+            const progressBar = document.getElementById('export-progress-bar');
+            const progressText = document.getElementById('export-progress-text');
+            const currentItemText = document.getElementById('export-current-item');
+            const resultsLog = document.getElementById('export-results-log');
+            
+            modalTitle.innerText = "Exporting Websites";
+            exportModal.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.innerText = `0 / ${addresses.length}`;
+            currentItemText.innerText = '';
+            resultsLog.innerHTML = '';
+
+            let results = [];
+            let processedCount = 0;
+            const chunkSize = 30;
+
+            // 过滤掉这些域名（包括它们的子域名）
+            const blockedDomains = [
+                'x.com', 'instagram.com', 'tiktok.com', 'solana.com', 
+                'github.io', 'gitbook.io', 'youtube.com', 'coinmarketcap.com', 
+                't.me', 'facebook.com', 'google.com', 'notion.site', 'bscscan.com'
+            ];
+
+            // 提取纯域名并过滤
+            function processUrl(urlStr) {
+                if (!urlStr) return null;
+                try {
+                    // 补全协议以便 URL 对象解析
+                    if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+                        urlStr = 'https://' + urlStr;
+                    }
+                    const urlObj = new URL(urlStr);
+                    let hostname = urlObj.hostname;
+                    // 去除 www. 前缀
+                    if (hostname.startsWith('www.')) {
+                        hostname = hostname.substring(4);
+                    }
+                    
+                    // 检查是否在黑名单中（检查后缀，这样可以匹配子域名）
+                    for (let blocked of blockedDomains) {
+                        if (hostname === blocked || hostname.endsWith('.' + blocked)) {
+                            return null;
+                        }
+                    }
+                    return hostname;
+                } catch (e) {
+                    return null; // 解析失败的 URL 忽略
+                }
+            }
+
+            try {
+                for (let i = 0; i < addresses.length; i += chunkSize) {
+                    const chunk = addresses.slice(i, i + chunkSize);
+                    const chunkStr = chunk.join(',');
+                    let chunkWebsites = {};
+                    chunk.forEach(addr => chunkWebsites[addr.toLowerCase()] = []);
+
+                    currentItemText.innerText = `Fetching DexScreener data for batch ${Math.floor(i/chunkSize) + 1}...`;
+
+                    try {
+                        const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${chunkStr}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data && data.pairs) {
+                                data.pairs.forEach(p => {
+                                    if (p.baseToken && p.baseToken.address) {
+                                        const addrLower = p.baseToken.address.toLowerCase();
+                                        if (chunkWebsites[addrLower] && p.info && p.info.websites) {
+                                            p.info.websites.forEach(w => {
+                                                const cleanDomain = processUrl(w.url);
+                                                if (cleanDomain && !chunkWebsites[addrLower].includes(cleanDomain)) {
+                                                    chunkWebsites[addrLower].push(cleanDomain);
+                                                }
+                                            });
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.error("DexScreener fetch failed for chunk", err);
+                    }
+
+                    // Fallback to Ave API for tokens that still have no website
+                    const selectedChain = document.getElementById('chain-select').value;
+                    let aveChain = selectedChain;
+                    if (selectedChain === 'ethereum') aveChain = 'eth';
+                    if (selectedChain === 'arbitrum') aveChain = 'arbitrum';
+                    if (selectedChain === 'solana') aveChain = 'solana';
+
+                    const avePromises = chunk.map(async (addr) => {
+                        const addrLower = addr.toLowerCase();
+                        if (chunkWebsites[addrLower].length === 0) {
+                            currentItemText.innerText = `Fallback Ave API for: ${addr}`;
+                            try {
+                                const res = await fetch(`https://jimokyj.com/v1api/v3/tokens/${addr}-${aveChain}`);
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    if (data.status === 1 && data.data && data.data.token && data.data.token.appendix) {
+                                        const appendix = JSON.parse(data.data.token.appendix);
+                                        const cleanDomain = processUrl(appendix.website);
+                                        if (cleanDomain && !chunkWebsites[addrLower].includes(cleanDomain)) {
+                                            chunkWebsites[addrLower].push(cleanDomain);
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                // ignore
+                            }
+                        }
+                    });
+
+                    await Promise.all(avePromises);
+
+                    chunk.forEach(addr => {
+                        const addrLower = addr.toLowerCase();
+                        const resultLine = `${addr} [${chunkWebsites[addrLower].join(',')}]`;
+                        results.push(resultLine);
+                        
+                        // Append to log and scroll to bottom
+                        const logEntry = document.createElement('div');
+                        logEntry.textContent = resultLine;
+                        resultsLog.appendChild(logEntry);
+                        resultsLog.scrollTop = resultsLog.scrollHeight;
+                        
+                        processedCount++;
+                    });
+                    
+                    const percent = Math.round((processedCount / addresses.length) * 100);
+                    progressBar.style.width = `${percent}%`;
+                    progressText.innerText = `${processedCount} / ${addresses.length} (${percent}%)`;
+                }
+                
+                currentItemText.innerText = "Generating file...";
+                
+                // 将有域名的排在前面，没有域名的排在后面
+                results.sort((a, b) => {
+                    const aEmpty = a.endsWith('[]');
+                    const bEmpty = b.endsWith('[]');
+                    if (aEmpty && !bEmpty) return 1;
+                    if (!aEmpty && bEmpty) return -1;
+                    return 0;
+                });
+                
+                const blob = new Blob([results.join('\n')], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `export_websites_${quantity}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                setTimeout(() => {
+                    exportModal.style.display = 'none';
+                }, 1000);
+                
+            } catch (e) {
+                console.error("Export failed:", e);
+                alert("Export failed. See console for details.");
+                exportModal.style.display = 'none';
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function exportPools() {
+            if (!allTokens || allTokens.length === 0) {
+                alert("No data to export. Please fetch data first.");
+                return;
+            }
+            const quantityStr = prompt("Please enter the quantity you want to export.", "100");
+            if (!quantityStr) return;
+            const quantity = parseInt(quantityStr, 10);
+            if (isNaN(quantity) || quantity <= 0) {
+                alert("Invalid quantity.");
+                return;
+            }
+
+            // 去重合约地址，并截取指定数量
+            const uniqueAddresses = new Set();
+            const addresses = [];
+            for (let t of allTokens) {
+                const addr = (t.target_token || t.token).toLowerCase();
+                if (!uniqueAddresses.has(addr)) {
+                    uniqueAddresses.add(addr);
+                    addresses.push(t.target_token || t.token);
+                }
+                if (addresses.length >= quantity) {
+                    break;
+                }
+            }
+
+            if (addresses.length === 0) {
+                alert("No unique addresses found to export.");
+                return;
+            }
+            
+            const btn = document.getElementById('btn-export-pool');
+            const originalText = btn.innerText;
+            btn.innerText = "Exporting...";
+            btn.disabled = true;
+
+            const exportModal = document.getElementById('exportModal');
+            const modalTitle = document.getElementById('export-modal-title');
+            const progressBar = document.getElementById('export-progress-bar');
+            const progressText = document.getElementById('export-progress-text');
+            const currentItemText = document.getElementById('export-current-item');
+            const resultsLog = document.getElementById('export-results-log');
+            
+            modalTitle.innerText = "Exporting Pools";
+            exportModal.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.innerText = `0 / ${addresses.length}`;
+            currentItemText.innerText = '';
+            resultsLog.innerHTML = '';
+
+            let results = [];
+            let processedCount = 0;
+            const chunkSize = 30;
+            const selectedChain = document.getElementById('chain-select').value;
+
+            try {
+                for (let i = 0; i < addresses.length; i += chunkSize) {
+                    const chunk = addresses.slice(i, i + chunkSize);
+                    const chunkStr = chunk.join(',');
+                    let chunkPools = {};
+                    chunk.forEach(addr => chunkPools[addr.toLowerCase()] = "");
+
+                    currentItemText.innerText = `Fetching DexScreener data for batch ${Math.floor(i/chunkSize) + 1}...`;
+
+                    try {
+                        const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${chunkStr}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data && data.pairs) {
+                                // Group pairs by baseToken address
+                                const pairsByToken = {};
+                                data.pairs.forEach(p => {
+                                    if (p.baseToken && p.baseToken.address) {
+                                        const addrLower = p.baseToken.address.toLowerCase();
+                                        if (!pairsByToken[addrLower]) pairsByToken[addrLower] = [];
+                                        pairsByToken[addrLower].push(p);
+                                    }
+                                });
+
+                                // Find best pair for each token in chunk
+                                chunk.forEach(addr => {
+                                    const addrLower = addr.toLowerCase();
+                                    const tokenPairs = pairsByToken[addrLower] || [];
+                                    if (tokenPairs.length > 0) {
+                                        // 优先匹配当前选中的链，并按流动性排序
+                                        const chainPairs = tokenPairs.filter(p => p.chainId === selectedChain).sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                                        const mainPair = chainPairs.length > 0 ? chainPairs[0] : tokenPairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+                                        if (mainPair && mainPair.pairAddress) {
+                                            chunkPools[addrLower] = mainPair.pairAddress;
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.error("DexScreener fetch failed for chunk", err);
+                    }
+
+                    chunk.forEach(addr => {
+                        const addrLower = addr.toLowerCase();
+                        const poolAddr = chunkPools[addrLower];
+                        const resultLine = poolAddr ? `${addr} [${poolAddr}]` : `${addr} []`;
+                        results.push(resultLine);
+                        
+                        // Append to log and scroll to bottom
+                        const logEntry = document.createElement('div');
+                        logEntry.textContent = resultLine;
+                        resultsLog.appendChild(logEntry);
+                        resultsLog.scrollTop = resultsLog.scrollHeight;
+                        
+                        processedCount++;
+                    });
+                    
+                    const percent = Math.round((processedCount / addresses.length) * 100);
+                    progressBar.style.width = `${percent}%`;
+                    progressText.innerText = `${processedCount} / ${addresses.length} (${percent}%)`;
+                }
+                
+                currentItemText.innerText = "Generating file...";
+                
+                // 将有池子的排在前面，没有的排在后面
+                results.sort((a, b) => {
+                    const aEmpty = a.endsWith('[]');
+                    const bEmpty = b.endsWith('[]');
+                    if (aEmpty && !bEmpty) return 1;
+                    if (!aEmpty && bEmpty) return -1;
+                    return 0;
+                });
+                
+                const blob = new Blob([results.join('\n')], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `export_pools_${quantity}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                setTimeout(() => {
+                    exportModal.style.display = 'none';
+                }, 1000);
+                
+            } catch (e) {
+                console.error("Export failed:", e);
+                alert("Export failed. See console for details.");
+                exportModal.style.display = 'none';
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function getLogicContract() {
+            const proxyAddress = document.getElementById('proxy-input').value.trim();
+            const resultSpan = document.getElementById('logic-result');
+            
+            if (!proxyAddress) {
+                alert("Please enter a proxy contract address.");
+                return;
+            }
+
+            const ankrKey = document.getElementById('ankr-api-key').value.trim();
+            if (!ankrKey) {
+                alert("Please enter Ankr API Key in the right panel first!");
+                return;
+            }
+
+            const chain = document.getElementById('chain-select').value;
+            
+            const btn = document.getElementById('btn-get-logic');
+            const originalText = btn.innerText;
+            btn.innerText = "Checking...";
+            btn.disabled = true;
+            resultSpan.innerHTML = '';
+
+            try {
+                const result = await checkAddressType(proxyAddress, chain);
+                if (result.type === 'Proxy' || result.type === 'EIP7702') {
+                    if (result.logicAddress) {
+                        resultSpan.innerHTML = `<span style="color: #666;">Logic:</span> <span class="address">${result.logicAddress}</span> ${getCopyIcon(result.logicAddress)}`;
+                    } else {
+                        resultSpan.innerHTML = `<span style="color: #dc3545;">Logic address not found.</span>`;
+                    }
+                } else {
+                    resultSpan.innerHTML = `<span style="color: #dc3545;">Not a recognized proxy (${result.type}).</span>`;
+                }
+            } catch (e) {
+                console.error(e);
+                resultSpan.innerHTML = `<span style="color: #dc3545;">Error checking address.</span>`;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function privateKeyToEvmAddress() {
+            const privateKeyInput = document.getElementById('evm-private-key-input');
+            const resultSpan = document.getElementById('evm-address-result');
+            const rawPrivateKey = privateKeyInput.value.trim();
+            const privateKey = rawPrivateKey.startsWith('0x') ? rawPrivateKey : `0x${rawPrivateKey}`;
+
+            resultSpan.innerHTML = '';
+
+            if (!rawPrivateKey) {
+                alert("Please enter an EVM private key.");
+                return;
+            }
+
+            if (!window.ethers || !window.ethers.Wallet) {
+                resultSpan.innerHTML = `<span style="color: #dc3545;">Ethers library failed to load.</span>`;
+                return;
+            }
+
+            if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) {
+                resultSpan.innerHTML = `<span style="color: #dc3545;">Invalid private key.</span>`;
+                return;
+            }
+
+            try {
+                const wallet = new ethers.Wallet(privateKey);
+                resultSpan.innerHTML = `<span style="color: #666;">Address:</span> <span class="address">${wallet.address}</span> ${getCopyIcon(wallet.address)}`;
+            } catch (e) {
+                console.error(e);
+                resultSpan.innerHTML = `<span style="color: #dc3545;">Failed to convert private key.</span>`;
+            }
+        }
+
+        function changePage(delta) {
+            const totalPages = Math.ceil(allTokens.length / pageSize);
+            currentPage += delta;
+            if (currentPage < 1) currentPage = 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            renderPage();
+        }
+
+        function goToPage() {
+            const totalPages = Math.ceil(allTokens.length / pageSize);
+            let targetPage = parseInt(document.getElementById('page-input').value);
+            if (isNaN(targetPage)) return;
+            if (targetPage < 1) targetPage = 1;
+            if (targetPage > totalPages) targetPage = totalPages;
+            currentPage = targetPage;
+            renderPage();
+        }
+
+        function renderPage() {
+            const tbody = document.getElementById('tokens-body');
+            tbody.innerHTML = '';
+            
+            const totalPages = Math.ceil(allTokens.length / pageSize);
+            
+            if (allTokens.length > 0) {
+                document.getElementById('pagination-controls').style.display = 'flex';
+                document.getElementById('page-info').textContent = `Page ${currentPage} / ${totalPages} (Total ${allTokens.length})`;
+                document.getElementById('page-input').value = currentPage;
+                document.getElementById('page-input').max = totalPages;
+                document.getElementById('btn-prev').disabled = currentPage === 1;
+                document.getElementById('btn-next').disabled = currentPage === totalPages;
+            } else {
+                document.getElementById('pagination-controls').style.display = 'none';
+            }
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, allTokens.length);
+            const pageTokens = allTokens.slice(startIndex, endIndex);
+            
+            pageTokens.forEach(token => {
+                const tr = document.createElement('tr');
+                tr.className = 'token-row';
+                tr.style.cursor = 'pointer';
+                
+                // Unify field names
+                let tokenAddress = token.target_token || token.token;
+                let tokenSymbol = '';
+                let tokenName = '';
+                let logoUrl = '';
+                
+                if (token.target_token === token.token0_address) {
+                    tokenSymbol = token.token0_symbol;
+                    tokenName = token.name_zh || token.name_en || token.token0_symbol;
+                    logoUrl = token.token0_logo_url;
+                } else if (token.target_token === token.token1_address) {
+                    tokenSymbol = token.token1_symbol;
+                    tokenName = token.name_zh || token.name_en || token.token1_symbol;
+                    logoUrl = token.token1_logo_url;
+                } else {
+                    tokenSymbol = token.symbol || token.symbol_en || 'Unknown';
+                    tokenName = token.name || token.name_en || 'Unknown';
+                    logoUrl = token.logo_url;
+                }
+                
+                if (logoUrl && !logoUrl.startsWith('http')) {
+                    logoUrl = 'https://www.iconaves.com/' + logoUrl;
+                }
+                logoUrl = logoUrl || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+                // Format price
+                const price = parseFloat(token.target_current_price_usd || token.current_price_usd || token.token0_price_usd || 0);
+                const priceStr = price < 0.001 ? price.toExponential(4) : price.toFixed(4);
+                
+                // Format volume and market cap
+                const volumeNum = parseFloat(token.target_tx_volume_u_24h || token.tx_volume_u_24h || token.volume_u_24h || token.token_tx_volume_usd_24h || 0);
+                const volume = formatNumber(volumeNum);
+                
+                // Calculate market cap (price * total supply, or read directly)
+                let mcNum = parseFloat(token.market_cap || 0);
+                if (mcNum === 0 && price > 0) {
+                    // If no direct market cap, try to estimate with price (usually meme tokens have 1B supply)
+                    mcNum = price * 1000000000;
+                }
+                const mc = formatNumber(mcNum);
+                
+                // Holders count
+                const holders = token.target_holders || token.holders || token.lp_holders || 0;
+                
+                // Format time
+                let timeHtml = '';
+                const timeField = token.target_opening_at || token.opening_at || token.created_at || token.launch_at;
+                if (timeField) {
+                    let date;
+                    if (typeof timeField === 'string') {
+                        date = new Date(timeField); // ISO string
+                    } else {
+                        date = new Date(timeField * 1000); // Timestamp
+                    }
+                    const timeStr = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                    timeHtml = `<td class="time-cell">${timeStr}</td>`;
+                } else {
+                    timeHtml = `<td class="time-cell">-</td>`;
+                }
+                
+                tr.innerHTML = `
+                    <td>
+                        <div class="token-info">
+                            <img src="${logoUrl}" class="token-logo" onerror="this.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'">
+                            <div>
+                                <strong>${tokenSymbol}</strong>
+                            </div>
+                        </div>
+                    </td>
+                    <td>$${volume}</td>
+                    <td>$${mc}</td>
+                    <td>${holders}</td>
+                    ${timeHtml}
+                    <td>
+                        <span class="address" title="Click to view details">
+                            ${tokenAddress.substring(0, 6)}...${tokenAddress.substring(tokenAddress.length - 4)}
+                        </span>
+                        ${getCopyIcon(tokenAddress)}
+                    </td>
+                `;
+                
+                tr.onclick = () => {
+                    document.querySelectorAll('.token-row').forEach(r => r.classList.remove('selected-row'));
+                    tr.classList.add('selected-row');
+                    loadTokenDetails(tokenAddress, document.getElementById('chain-select').value);
+                };
+                
+                tbody.appendChild(tr);
+            });
+        }
+        
+        function formatNumber(numStr) {
+            const num = parseFloat(numStr || 0);
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return num.toFixed(2);
+        }
+
+        const copySvg = `<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+        const checkSvg = `<svg viewBox="0 0 24 24" width="13" height="13" stroke="#28a745" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+        async function copyToClipboard(event, text, el) {
+            event.stopPropagation();
+            try {
+                await navigator.clipboard.writeText(text);
+                el.innerHTML = checkSvg;
+                setTimeout(() => {
+                    el.innerHTML = copySvg;
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy!', err);
+            }
+        }
+
+        function getCopyIcon(text) {
+            return `<span class="copy-icon" onclick="copyToClipboard(event, '${text}', this)" title="Copy">${copySvg}</span>`;
+        }
+
+        // ==========================================
+        // Right panel logic (from 1.html)
+        // ==========================================
+        
+        function handleSearchRight() {
+            const tokenAddress = document.getElementById('tokenInputRight').value.trim();
+            const selectedChain = document.getElementById('search-chain-select').value;
+            if (!tokenAddress) {
+                alert("Please enter token contract address");
+                return;
+            }
+            loadTokenDetails(tokenAddress, selectedChain);
+        }
+
+        async function loadTokenDetails(tokenAddress, leftPanelChain = null) {
+            if (!tokenAddress) return;
+
+            const ankrKey = document.getElementById('ankr-api-key').value.trim();
+            if (!ankrKey) {
+                alert("Please enter Ankr API Key first to fetch holders info!");
+                return;
+            }
+            localStorage.setItem('ankr-api-key', ankrKey);
+
+            const bscscanKey = document.getElementById('bscscan-api-key').value.trim();
+            if (bscscanKey) {
+                localStorage.setItem('bscscan-api-key', bscscanKey);
+            }
+
+            // Sync search box value (if clicked from left panel)
+            document.getElementById('tokenInputRight').value = tokenAddress;
+            if (leftPanelChain) {
+                document.getElementById('search-chain-select').value = leftPanelChain;
+            }
+
+            // Reset UI
+            document.getElementById('placeholderRight').style.display = 'none';
+            document.getElementById('errorMsgRight').style.display = 'none';
+            document.getElementById('resultContainerRight').style.display = 'none';
+            document.getElementById('loadingRight').style.display = 'block';
+
+            try {
+                // Disable search button
+                const searchBtn = document.getElementById('searchBtnRight');
+                if (searchBtn) searchBtn.disabled = true;
+
+                // 1. Fetch DexScreener data first to determine chain
+                const dexData = await fetchDexScreenerData(tokenAddress);
+                
+                // Determine chain (prefer chain from left panel, otherwise infer from DexScreener, default to bsc)
+                let currentChain = leftPanelChain || 'bsc';
+                if (!leftPanelChain && dexData && dexData.pairs && dexData.pairs.length > 0) {
+                    // If searched directly from right panel, use chain of the pair with highest liquidity
+                    const bestPair = dexData.pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+                    if (bestPair && bestPair.chainId) {
+                        currentChain = bestPair.chainId;
+                    }
+                }
+
+                // 2. Fetch holders data, Ave data, and token contract type
+                const [holdersData, aveData, tokenTypeResult] = await Promise.all([
+                    fetchAnkrHolders(tokenAddress, ankrKey, currentChain),
+                    fetchAveTokenData(tokenAddress, currentChain),
+                    checkAddressType(tokenAddress, currentChain)
+                ]);
+
+                // 3. Process DexScreener data
+                renderDexData(tokenAddress, dexData, currentChain, aveData, tokenTypeResult);
+
+                // Extract main pair address
+                let mainPairAddress = "";
+                if (dexData && dexData.pairs && dexData.pairs.length > 0) {
+                    const chainPairs = dexData.pairs.filter(p => p.chainId === currentChain).sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                    const mainPair = chainPairs.length > 0 ? chainPairs[0] : dexData.pairs[0];
+                    if (mainPair && mainPair.pairAddress) {
+                        mainPairAddress = mainPair.pairAddress.toLowerCase();
+                    }
+                }
+
+                // 4. Show result container, hide loading
+                document.getElementById('resultContainerRight').style.display = 'block';
+                document.getElementById('loadingRight').style.display = 'none';
+
+                // 5. Process holders data and check if it's a contract
+                renderHoldersData(holdersData, mainPairAddress, currentChain, tokenAddress).catch(e => console.error("Render holders error:", e));
+
+            } catch (error) {
+                console.error("Overall query process error:", error);
+                showErrorRight("Search failed: " + error.message);
+                document.getElementById('loadingRight').style.display = 'none';
+            } finally {
+                // Restore search button
+                const searchBtn = document.getElementById('searchBtnRight');
+                if (searchBtn) searchBtn.disabled = false;
+            }
+        }
+
+        // Fetch DexScreener data
+        async function fetchDexScreenerData(tokenAddress) {
+            try {
+                const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
+                if (!res.ok) {
+                    console.warn("DexScreener API request failed");
+                    return { pairs: [] };
+                }
+                const data = await res.json();
+                return data;
+            } catch (err) {
+                console.error("DexScreener fetch failed:", err);
+                return { pairs: [] };
+            }
+        }
+
+        // Fetch Ave data for fallback social info
+        async function fetchAveTokenData(tokenAddress, chain) {
+            let aveChain = chain;
+            if (chain === 'ethereum') aveChain = 'eth';
+            if (chain === 'arbitrum') aveChain = 'arbitrum';
+            if (chain === 'solana') aveChain = 'solana';
+
+            try {
+                const res = await fetch(`https://jimokyj.com/v1api/v3/tokens/${tokenAddress}-${aveChain}`);
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (data.status === 1 && data.data && data.data.token && data.data.token.appendix) {
+                    return JSON.parse(data.data.token.appendix);
+                }
+            } catch (e) {
+                console.error("Ave API fetch failed:", e);
+            }
+            return null;
+        }
+
+        // Fetch Ankr holders data
+        async function fetchAnkrHolders(tokenAddress, ankrKey, chain = 'bsc') {
+            const ANKR_MULTICHAIN_URL = `https://rpc.ankr.com/multichain/${ankrKey}`;
+            console.log("Request Ankr API:", ANKR_MULTICHAIN_URL);
+            
+            // Map chain name to Ankr supported format
+            let ankrChain = chain;
+            if (chain === 'ethereum') ankrChain = 'eth';
+            
+            try {
+                const res = await fetch(ANKR_MULTICHAIN_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: "2.0",
+                        method: "ankr_getTokenHolders",
+                        params: {
+                            blockchain: ankrChain,
+                            contractAddress: tokenAddress,
+                            limit: 10
+                        },
+                        id: 1
+                    })
+                });
+                if (!res.ok) {
+                    throw new Error(`Ankr API HTTP Error: ${res.status}`);
+                }
+                const data = await res.json();
+                if (data.error) throw new Error(data.error.message || "Ankr API Error");
+                return data.result.holders || [];
+            } catch (err) {
+                console.error("Ankr fetch holders failed:", err);
+                throw err;
+            }
+        }
+
+        // Check address type (EOA, Contract, Proxy)
+        async function checkAddressType(address, chain = 'bsc') {
+            const ankrKey = document.getElementById('ankr-api-key').value.trim();
+            
+            // Map chain name to Ankr RPC supported format
+            let ankrChain = chain;
+            if (chain === 'ethereum') ankrChain = 'eth';
+            if (chain === 'arbitrum') ankrChain = 'arbitrum';
+            
+            const ANKR_RPC_URL = `https://rpc.ankr.com/${ankrChain}/${ankrKey}`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+            try {
+                // Batch request for performance and comprehensive proxy checking
+                const batchRes = await fetch(ANKR_RPC_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify([
+                        { jsonrpc: "2.0", method: "eth_getCode", params: [address, "latest"], id: "code" },
+                        { jsonrpc: "2.0", method: "eth_getStorageAt", params: [address, "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc", "latest"], id: "eip1967" },
+                        { jsonrpc: "2.0", method: "eth_call", params: [{ to: address, data: "0xa619486e" }, "latest"], id: "masterCopy" }, // SafeProxy
+                        { jsonrpc: "2.0", method: "eth_call", params: [{ to: address, data: "0x5c60da1b" }, "latest"], id: "implementation" } // EIP-897 / UUPS
+                    ]),
+                    signal: controller.signal
+                });
+                
+                if (!batchRes.ok) throw new Error("Batch RPC failed");
+                const batchData = await batchRes.json();
+                clearTimeout(timeoutId);
+
+                let code = "0x";
+                let eip1967 = "0x";
+                let masterCopy = "0x";
+                let implementation = "0x";
+
+                if (Array.isArray(batchData)) {
+                    batchData.forEach(res => {
+                        if (res.id === "code" && res.result) code = res.result;
+                        if (res.id === "eip1967" && res.result) eip1967 = res.result;
+                        if (res.id === "masterCopy" && res.result) masterCopy = res.result;
+                        if (res.id === "implementation" && res.result) implementation = res.result;
+                    });
+                }
+
+                // If no bytecode, it's an EOA
+                if (!code || code === "0x") {
+                    return { type: 'EOA' };
+                }
+
+                // 1. Check EIP-7702 Delegation (Starts with 0xef0100)
+                if (code.startsWith("0xef0100") && code.length === 48) {
+                    const delegatedAddr = "0x" + code.slice(8);
+                    return { type: 'EIP7702', logicAddress: delegatedAddr };
+                }
+
+                // 2. Check EIP-1167 Minimal Proxy (Starts with 0x363d3d37, contains 5af4)
+                if (code.startsWith("0x363d3d37") && code.includes("5af4")) {
+                    const match = code.match(/363d3d373d3d3d363d73([0-9a-fA-F]{40})5af4/);
+                    if (match && match[1]) {
+                        return { type: 'Proxy', logicAddress: "0x" + match[1], proxyType: 'MinimalProxy' };
+                    }
+                }
+
+                // 3. Check EIP-1967 logic contract slot (Transparent / UUPS)
+                if (eip1967 && eip1967 !== "0x" && eip1967 !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
+                    const logicAddr = "0x" + eip1967.slice(-40);
+                    return { type: 'Proxy', logicAddress: logicAddr, proxyType: 'EIP-1967' };
+                }
+
+                // 4. Check SafeProxy (masterCopy: 0xa619486e)
+                if (masterCopy && masterCopy !== "0x" && masterCopy.length >= 66) {
+                    const logicAddr = "0x" + masterCopy.slice(-40);
+                    if (logicAddr !== "0x0000000000000000000000000000000000000000") {
+                        return { type: 'Proxy', logicAddress: logicAddr, proxyType: 'SafeProxy' };
+                    }
+                }
+
+                // 5. Check EIP-897 / UUPS public implementation() (0x5c60da1b)
+                if (implementation && implementation !== "0x" && implementation.length >= 66) {
+                    const logicAddr = "0x" + implementation.slice(-40);
+                    if (logicAddr !== "0x0000000000000000000000000000000000000000") {
+                        return { type: 'Proxy', logicAddress: logicAddr, proxyType: 'Implementation' };
+                    }
+                }
+
+                return { type: 'Contract' };
+            } catch (err) {
+                clearTimeout(timeoutId);
+                console.error(`Check address type failed (${address}):`, err.name === 'AbortError' ? 'Timeout' : err);
+                return { type: 'EOA' };
+            }
+        }
+
+        // Format created time tag
+        function getCreatedTimeTag(timestampMs) {
+            if (!timestampMs) return '';
+            const diffMs = Date.now() - timestampMs;
+            if (diffMs < 0) return '';
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMins = Math.floor(diffMs / (1000 * 60));
+            
+            let timeStr = '';
+            if (diffDays > 0) {
+                timeStr = `${diffDays}天前创建`;
+            } else if (diffHours > 0) {
+                timeStr = `${diffHours}小时前创建`;
+            } else {
+                timeStr = `${diffMins}分钟前创建`;
+            }
+            return `<span class="tag tag-created">${timeStr}</span>`;
+        }
+
+        // Render DexScreener data
+        function renderDexData(tokenAddress, data, chain = 'bsc', aveAppendix = null, tokenTypeResult = null) {
+            let explorerUrl = chain === 'bsc' ? 'bscscan.com' : (chain === 'arbitrum' ? 'arbiscan.io' : (chain === 'ethereum' ? 'etherscan.io' : (chain === 'base' ? 'basescan.org' : 'bscscan.com')));
+            
+            let mainPair = null;
+            if (data.pairs && data.pairs.length > 0) {
+                const chainPairs = data.pairs.filter(p => p.chainId === chain).sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+                mainPair = chainPairs.length > 0 ? chainPairs[0] : data.pairs[0];
+            }
+
+            let tokenHtml = `<span class="address" title="${tokenAddress}">${tokenAddress.substring(0, 6)}...${tokenAddress.substring(tokenAddress.length - 4)}</span> ${getCopyIcon(tokenAddress)}`;
+            if (mainPair && mainPair.pairCreatedAt) {
+                tokenHtml += getCreatedTimeTag(mainPair.pairCreatedAt);
+            }
+            document.getElementById('resTokenAddress').innerHTML = tokenHtml;
+
+            if (tokenTypeResult) {
+                (async () => {
+                    const bscscanKey = document.getElementById('bscscan-api-key').value.trim();
+                    let html = '';
+                    if (tokenTypeResult.type === 'Proxy') {
+                        let proxyLabel = tokenTypeResult.proxyType ? `Proxy (${tokenTypeResult.proxyType})` : 'Proxy';
+                        html += `<span class="tag tag-proxy" style="margin-left: 8px;">${proxyLabel}</span>`;
+                        if (bscscanKey) {
+                            const isVerified = await checkContractVerified(tokenAddress, bscscanKey, chain);
+                            html += getVerifiedTagHtml(isVerified);
+                        }
+                        if (tokenTypeResult.logicAddress) {
+                            const shortAddr = tokenTypeResult.logicAddress.substring(0, 6) + '...' + tokenTypeResult.logicAddress.substring(38);
+                            html += `<div style="margin-top: 4px; font-size: 11px; color: #909399;">Logic: <span class="address" title="${tokenTypeResult.logicAddress}">${shortAddr}</span> ${getCopyIcon(tokenTypeResult.logicAddress)}`;
+                            if (bscscanKey) {
+                                const isLogicVerified = await checkContractVerified(tokenTypeResult.logicAddress, bscscanKey, chain);
+                                html += getVerifiedTagHtml(isLogicVerified);
+                            }
+                            html += `</div>`;
+                        }
+                    } else if (tokenTypeResult.type === 'EIP7702') {
+                        html += `<span class="tag tag-eip7702" style="margin-left: 8px;">EIP-7702 (EOA)</span>`;
+                        if (tokenTypeResult.logicAddress) {
+                            const shortAddr = tokenTypeResult.logicAddress.substring(0, 6) + '...' + tokenTypeResult.logicAddress.substring(38);
+                            html += `<div style="margin-top: 4px; font-size: 11px; color: #909399;">Delegated: <span class="address" title="${tokenTypeResult.logicAddress}">${shortAddr}</span> ${getCopyIcon(tokenTypeResult.logicAddress)}`;
+                            if (bscscanKey) {
+                                const isLogicVerified = await checkContractVerified(tokenTypeResult.logicAddress, bscscanKey, chain);
+                                html += getVerifiedTagHtml(isLogicVerified);
+                            }
+                            html += `</div>`;
+                        }
+                    } else if (tokenTypeResult.type === 'Contract') {
+                        html += `<span class="tag tag-contract" style="margin-left: 8px;">Contract</span>`;
+                        if (bscscanKey) {
+                            const isVerified = await checkContractVerified(tokenAddress, bscscanKey, chain);
+                            html += getVerifiedTagHtml(isVerified);
+                        }
+                    } else {
+                        html += `<span class="tag tag-eoa" style="margin-left: 8px;">EOA</span>`;
+                    }
+                    
+                    if (html) {
+                        document.getElementById('resTokenAddress').innerHTML += html;
+                    }
+                })();
+            }
+            
+            if (!mainPair) {
+                document.getElementById('resTokenName').innerText = "Unknown";
+                document.getElementById('resPoolAddress').innerText = "None";
+                document.getElementById('resPoolLiquidity').innerText = "None";
+                document.getElementById('resPrice').innerText = "None";
+                document.getElementById('socialDataSource').innerText = '';
+            } else {
+                document.getElementById('resTokenName').innerText = `${mainPair.baseToken.name} (${mainPair.baseToken.symbol})`;
+                
+                let poolHtml = `<a href="https://${explorerUrl}/address/${mainPair.pairAddress}" target="_blank">${mainPair.pairAddress}</a> ${getCopyIcon(mainPair.pairAddress)} (${mainPair.dexId})`;
+                if (mainPair.pairCreatedAt) {
+                    poolHtml += getCreatedTimeTag(mainPair.pairCreatedAt);
+                }
+                document.getElementById('resPoolAddress').innerHTML = poolHtml;
+                
+                const liqUsd = mainPair.liquidity?.usd ? `$${mainPair.liquidity.usd.toLocaleString()}` : "Unknown";
+                document.getElementById('resPoolLiquidity').innerText = liqUsd;
+                document.getElementById('resPrice').innerText = `$${mainPair.priceUsd || "Unknown"}`;
+            }
+
+            // 渲染社交信息
+            let socialsHtml = "";
+            let dataSource = "";
+
+            if (mainPair && mainPair.info && (mainPair.info.websites?.length > 0 || mainPair.info.socials?.length > 0)) {
+                dataSource = "DexScreener";
+                if (mainPair.info.websites && mainPair.info.websites.length > 0) {
+                    mainPair.info.websites.forEach(w => {
+                        socialsHtml += `<div class="info-row"><div class="info-label">Website:</div><div class="info-value"><a href="${w.url}" target="_blank">${w.url}</a></div></div>`;
+                    });
+                }
+                if (mainPair.info.socials && mainPair.info.socials.length > 0) {
+                    mainPair.info.socials.forEach(s => {
+                        socialsHtml += `<div class="info-row"><div class="info-label">${s.type.toUpperCase()}:</div><div class="info-value"><a href="${s.url}" target="_blank">${s.url}</a></div></div>`;
+                    });
+                }
+            } else if (aveAppendix) {
+                // Fallback to Ave API
+                let hasAveSocials = false;
+                const socialKeys = ['website', 'twitter', 'telegram', 'discord', 'github', 'reddit', 'facebook', 'whitepaper'];
+                socialKeys.forEach(key => {
+                    if (aveAppendix[key]) {
+                        hasAveSocials = true;
+                        let label = key.charAt(0).toUpperCase() + key.slice(1);
+                        socialsHtml += `<div class="info-row"><div class="info-label">${label}:</div><div class="info-value"><a href="${aveAppendix[key]}" target="_blank">${aveAppendix[key]}</a></div></div>`;
+                    }
+                });
+                if (hasAveSocials) {
+                    dataSource = "Ave.ai";
+                }
+            }
+
+            const socialsDiv = document.getElementById('resSocials');
+            const sourceSpan = document.getElementById('socialDataSource');
+
+            if (socialsHtml) {
+                sourceSpan.innerText = `Data Source: ${dataSource}`;
+                socialsDiv.innerHTML = socialsHtml;
+            } else {
+                sourceSpan.innerText = '';
+                socialsDiv.innerHTML = '<span style="color:#999;font-size:12px;">No website or social info</span>';
+            }
+        }
+
+        // Check if contract is verified (Explorer API)
+        async function getContractCreationTimestamp(address, apiKey, chain = 'bsc') {
+            if (!apiKey) return null;
+            let apiUrl = '';
+            if (chain === 'bsc') apiUrl = 'https://api.bscscan.com/api';
+            else if (chain === 'arbitrum') apiUrl = 'https://api.arbiscan.io/api';
+            else if (chain === 'ethereum') apiUrl = 'https://api.etherscan.io/api';
+            else if (chain === 'base') apiUrl = 'https://api.basescan.org/api';
+            else if (chain === 'polygon') apiUrl = 'https://api.polygonscan.com/api';
+            else return null;
+
+            async function fetchTx(action) {
+                let url = `${apiUrl}?module=account&action=${action}&address=${address}&startblock=0&endblock=99999999&page=1&offset=1&sort=asc&apikey=${apiKey}`;
+                let res = await fetch(url);
+                let data = await res.json();
+                
+                if (data.status === "0" && data.result && typeof data.result === 'string') {
+                    if (data.result.includes("switch to Etherscan API V2")) {
+                        let chainId = 56;
+                        if (chain === 'arbitrum') chainId = 42161;
+                        else if (chain === 'ethereum') chainId = 1;
+                        else if (chain === 'base') chainId = 8453;
+                        else if (chain === 'polygon') chainId = 137;
+                        
+                        url = `https://api.etherscan.io/v2/api?chainid=${chainId}&module=account&action=${action}&address=${address}&startblock=0&endblock=99999999&page=1&offset=1&sort=asc&apikey=${apiKey}`;
+                        res = await fetch(url);
+                        data = await res.json();
+                    } else if (data.result.includes("Max rate limit reached")) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        res = await fetch(url); // Retry once after 500ms
+                        data = await res.json();
+                    }
+                }
+                return data;
+            }
+
+            try {
+                let data = await fetchTx('txlist');
+                let timestamp = null;
+
+                if (data.status === '1' && data.result && data.result.length > 0) {
+                    timestamp = parseInt(data.result[0].timeStamp) * 1000;
+                }
+
+                // If no normal tx, fallback to internal tx list (might be created internally)
+                if (!timestamp) {
+                    await new Promise(resolve => setTimeout(resolve, 300)); // buffer before next request
+                    data = await fetchTx('txlistinternal');
+                    if (data.status === '1' && data.result && data.result.length > 0) {
+                        timestamp = parseInt(data.result[0].timeStamp) * 1000;
+                    }
+                }
+
+                return timestamp;
+            } catch (e) {
+                console.error("Get creation timestamp failed:", e);
+                return null;
+            }
+        }
+
+        async function checkContractVerified(address, apiKey, chain = 'bsc') {
+            if (!apiKey) return null;
+            
+            let apiUrl = '';
+            // For BscScan, use api.bscscan.com/api (V1) or api.etherscan.io/v2/api?chainid=56 (V2)
+            // It seems BscScan V1 is deprecated for some keys, so we use Etherscan V2 API for all EVM chains if possible,
+            // or stick to the specific chain's API but use the correct endpoint.
+            // Actually, Etherscan V2 API supports multiple chains with chainid.
+            if (chain === 'bsc') apiUrl = 'https://api.bscscan.com/api'; // We will try V1 first, if it says "switch to Etherscan API V2", we will switch.
+            else if (chain === 'arbitrum') apiUrl = 'https://api.arbiscan.io/api';
+            else if (chain === 'ethereum') apiUrl = 'https://api.etherscan.io/api';
+            else if (chain === 'base') apiUrl = 'https://api.basescan.org/api';
+            else if (chain === 'polygon') apiUrl = 'https://api.polygonscan.com/api';
+            else return null; // Unsupported chain
+
+            try {
+                let url = `${apiUrl}?module=contract&action=getsourcecode&address=${address}&apikey=${apiKey}`;
+                let res = await fetch(url);
+                let data = await res.json();
+                
+                // If BscScan V1 is deprecated for this key, fallback to Etherscan V2 API
+                if (data.status === "0" && data.result && data.result.includes("switch to Etherscan API V2")) {
+                    let chainId = 56; // bsc
+                    if (chain === 'arbitrum') chainId = 42161;
+                    else if (chain === 'ethereum') chainId = 1;
+                    else if (chain === 'base') chainId = 8453;
+                    else if (chain === 'polygon') chainId = 137;
+                    
+                    url = `https://api.etherscan.io/v2/api?chainid=${chainId}&module=contract&action=getsourcecode&address=${address}&apikey=${apiKey}`;
+                    res = await fetch(url);
+                    data = await res.json();
+                } else if (data.status === "0" && data.result && data.result.toLowerCase().includes("rate limit")) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    res = await fetch(url);
+                    data = await res.json();
+                }
+
+                if (data.status === "1" && data.result && data.result.length > 0) {
+                    // getsourcecode returns an array. If ABI is "Contract source code not verified", it's unverified.
+                    if (data.result[0].ABI === "Contract source code not verified") {
+                        return false;
+                    }
+                    return true;
+                } else {
+                    // Check the exact reason for status "0"
+                    const resultMsg = (data.result || "").toLowerCase();
+                    if (resultMsg.includes("not verified")) {
+                        return false;
+                    } else if (resultMsg.includes("rate limit")) {
+                        return "rate_limit";
+                    } else if (resultMsg.includes("invalid api key") || resultMsg.includes("missing/invalid api key")) {
+                        return "invalid_key";
+                    } else {
+                        console.warn("Explorer API returned status 0:", data.result);
+                        return "error";
+                    }
+                }
+            } catch (e) {
+                console.error("Explorer API error:", e);
+                return "error";
+            }
+        }
+
+        function getVerifiedTagHtml(status) {
+            if (status === true) {
+                return '<span class="tag tag-verified">Verified</span>';
+            } else if (status === false) {
+                return '<span class="tag tag-unverified">Unverified</span>';
+            } else if (status === "rate_limit") {
+                return '<span class="tag" style="background-color:#fff8e6;color:#e6a23c;border:1px solid #fdf6ec;margin-left:4px;" title="BscScan API rate limit exceeded (max 5/sec)">Rate Limited</span>';
+            } else if (status === "invalid_key" || status === "api_error") {
+                return '<span class="tag" style="background-color:#fef0f0;color:#f56c6c;border:1px solid #fde2e2;margin-left:4px;" title="Invalid or missing Explorer API Key">Invalid Key</span>';
+            } else if (status === "error") {
+                return '<span class="tag" style="background-color:#f4f4f5;color:#909399;border:1px solid #e9e9eb;margin-left:4px;">API Error</span>';
+            }
+            return '';
+        }
+
+        // Render holders data
+        async function renderHoldersData(holders, mainPairAddress, chain = 'bsc', tokenAddress = '') {
+            const tbody = document.getElementById('holdersTableBody');
+            tbody.innerHTML = "";
+
+            if (!holders || holders.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;'>No holders data found</td></tr>";
+                return;
+            }
+
+            const topHolders = holders.slice(0, 10);
+
+            // 1. Render table first with "Checking..." type
+            topHolders.forEach((h, index) => {
+                const formattedBalance = parseFloat(h.balance).toLocaleString('en-US', { maximumFractionDigits: 2 });
+                const tr = document.createElement('tr');
+                let explorerUrl = chain === 'bsc' ? 'bscscan.com' : (chain === 'arbitrum' ? 'arbiscan.io' : (chain === 'ethereum' ? 'etherscan.io' : (chain === 'base' ? 'basescan.org' : 'bscscan.com')));
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td><a href="https://${explorerUrl}/address/${h.holderAddress}" target="_blank">${h.holderAddress.substring(0, 6)}...${h.holderAddress.substring(h.holderAddress.length - 4)}</a> ${getCopyIcon(h.holderAddress)}</td>
+                    <td id="type-${index}"><span style="color: #909399;">Checking...</span></td>
+                    <td>${formattedBalance}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const bscscanKey = document.getElementById('bscscan-api-key').value.trim();
+
+            // 2. Asynchronously check contract status one by one and update DOM
+            for (let i = 0; i < topHolders.length; i++) {
+                try {
+                    const holderAddr = topHolders[i].holderAddress;
+                    const result = await checkAddressType(holderAddr, chain);
+                    const typeTd = document.getElementById(`type-${i}`);
+                    if (typeTd) {
+                        if (result.type === 'Proxy') {
+                            let proxyLabel = result.proxyType ? `Proxy (${result.proxyType})` : 'Proxy';
+                            let html = `<span class="tag tag-proxy">${proxyLabel}</span>`;
+                            let explorerUrl = chain === 'bsc' ? 'bscscan.com' : (chain === 'arbitrum' ? 'arbiscan.io' : (chain === 'ethereum' ? 'etherscan.io' : (chain === 'base' ? 'basescan.org' : 'bscscan.com')));
+                            
+                            if (tokenAddress && holderAddr.toLowerCase() === tokenAddress.toLowerCase()) {
+                                html += `<span class="tag tag-token">Token</span>`;
+                            }
+                            if (mainPairAddress && holderAddr.toLowerCase() === mainPairAddress) {
+                                html += `<span class="tag tag-pair">Pair</span>`;
+                            }
+
+                            // Check if proxy contract is verified
+                            if (bscscanKey) {
+                                const isVerified = await checkContractVerified(holderAddr, bscscanKey, chain);
+                                html += getVerifiedTagHtml(isVerified);
+                            }
+
+                            if (result.logicAddress) {
+                                const shortAddr = result.logicAddress.substring(0, 6) + '...' + result.logicAddress.substring(38);
+                                html += `<div style="margin-top: 4px; font-size: 11px; color: #909399;">Logic: <a href="https://${explorerUrl}/address/${result.logicAddress}" target="_blank" title="${result.logicAddress}">${shortAddr}</a> ${getCopyIcon(result.logicAddress)}`;
+                                
+                                // Check if logic contract is verified
+                                if (bscscanKey) {
+                                    const isLogicVerified = await checkContractVerified(result.logicAddress, bscscanKey, chain);
+                                    html += getVerifiedTagHtml(isLogicVerified);
+                                }
+                                html += `</div>`;
+                            }
+                            typeTd.innerHTML = html;
+                        } else if (result.type === 'EIP7702') {
+                            let html = `<span class="tag tag-eip7702">EIP-7702 (EOA)</span>`;
+                            let explorerUrl = chain === 'bsc' ? 'bscscan.com' : (chain === 'arbitrum' ? 'arbiscan.io' : (chain === 'ethereum' ? 'etherscan.io' : (chain === 'base' ? 'basescan.org' : 'bscscan.com')));
+                            
+                            if (tokenAddress && holderAddr.toLowerCase() === tokenAddress.toLowerCase()) {
+                                html += `<span class="tag tag-token">Token</span>`;
+                            }
+
+                            if (result.logicAddress) {
+                                const shortAddr = result.logicAddress.substring(0, 6) + '...' + result.logicAddress.substring(38);
+                                html += `<div style="margin-top: 4px; font-size: 11px; color: #909399;">Delegated: <a href="https://${explorerUrl}/address/${result.logicAddress}" target="_blank" title="${result.logicAddress}">${shortAddr}</a> ${getCopyIcon(result.logicAddress)}`;
+                                
+                                // Check if delegated contract is verified
+                                if (bscscanKey) {
+                                    const isLogicVerified = await checkContractVerified(result.logicAddress, bscscanKey, chain);
+                                    html += getVerifiedTagHtml(isLogicVerified);
+                                }
+                                html += `</div>`;
+                            }
+                            typeTd.innerHTML = html;
+                        } else if (result.type === 'Contract') {
+                            let html = `<span class="tag tag-contract">Contract</span>`;
+                            if (tokenAddress && holderAddr.toLowerCase() === tokenAddress.toLowerCase()) {
+                                html += `<span class="tag tag-token">Token</span>`;
+                            }
+                            if (mainPairAddress && holderAddr.toLowerCase() === mainPairAddress) {
+                                html += `<span class="tag tag-pair">Pair</span>`;
+                            }
+                            // Check if normal contract is verified
+                            if (bscscanKey) {
+                                const isVerified = await checkContractVerified(holderAddr, bscscanKey, chain);
+                                html += getVerifiedTagHtml(isVerified);
+                            }
+                            typeTd.innerHTML = html;
+                        } else {
+                            typeTd.innerHTML = `<span class="tag tag-eoa">Wallet (EOA)</span>`;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Update status failed", e);
+                }
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+
+        function showErrorRight(msg) {
+            const errDiv = document.getElementById('errorMsgRight');
+            errDiv.innerText = msg;
+            errDiv.style.display = 'block';
+        }
+
+        // Tutorial modal logic
+        function showTutorial() {
+            document.getElementById('tutorialModal').style.display = 'block';
+        }
+
+        function closeTutorial() {
+            document.getElementById('tutorialModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('tutorialModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
